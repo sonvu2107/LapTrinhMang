@@ -1,0 +1,57 @@
+## Ignore Visual Studio & .NET temporary files, build results, and user files
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio / VS Code cache & local settings
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+
+# Project-specific: Video recordings & captured media (do not commit personal/recorded videos)
+recordings/*.mp4
+recordings/*.avi
+recordings/*.mkv
+recordings/*.jpg
+recordings/*.png
+!recordings/.gitkeep
+!assets/models/.gitkeep
+
+# OS generated files
+.DS_Store
+Thumbs.db
