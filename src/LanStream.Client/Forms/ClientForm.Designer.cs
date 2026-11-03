@@ -125,7 +125,7 @@ partial class ClientForm
         SuspendLayout();
 
         // ==========================================
-        // HEADER BAR (TikTok Live Studio Style)
+        // HEADER BAR (VisionAI Live Style)
         // ==========================================
         pnlHeader.Dock = DockStyle.Top;
         pnlHeader.Height = 64;
@@ -138,19 +138,19 @@ partial class ClientForm
             lblFpsBadge, lblBitrateBadge, lblFramesBadge
         });
 
-        // TikTok Note / Glow Logo
-        lblLogoIcon.Text = "🎵";
+        // VisionAI Icon / Glow Logo
+        lblLogoIcon.Text = "👁";
         lblLogoIcon.Font = new Font("Segoe UI Emoji", 16F, FontStyle.Regular);
-        lblLogoIcon.ForeColor = Color.FromArgb(254, 44, 85); // TikTok Red
+        lblLogoIcon.ForeColor = Color.FromArgb(254, 44, 85);
         lblLogoIcon.Location = new Point(14, 12);
         lblLogoIcon.Size = new Size(36, 36);
         lblLogoIcon.TextAlign = ContentAlignment.MiddleCenter;
 
         // Title
-        lblTitle.Text = "TIKTOK LIVE STUDIO";
-        lblTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+        lblTitle.Text = "VisionAI LIVE";
+        lblTitle.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
         lblTitle.ForeColor = Color.White;
-        lblTitle.Location = new Point(52, 10);
+        lblTitle.Location = new Point(52, 9);
         lblTitle.AutoSize = true;
 
         // Subtitle
@@ -190,7 +190,7 @@ partial class ClientForm
         // Badges on Right
         lblFpsBadge.Text = "⚡ 0.0 FPS";
         lblFpsBadge.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-        lblFpsBadge.ForeColor = Color.FromArgb(37, 244, 238); // TikTok Cyan
+        lblFpsBadge.ForeColor = Color.FromArgb(37, 244, 238);
         lblFpsBadge.BackColor = Color.FromArgb(28, 28, 34);
         lblFpsBadge.Location = new Point(620, 16);
         lblFpsBadge.Size = new Size(85, 30);
@@ -198,7 +198,7 @@ partial class ClientForm
 
         lblBitrateBadge.Text = "📶 0 Kbps";
         lblBitrateBadge.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-        lblBitrateBadge.ForeColor = Color.FromArgb(254, 44, 85); // TikTok Red
+        lblBitrateBadge.ForeColor = Color.FromArgb(254, 44, 85);
         lblBitrateBadge.BackColor = Color.FromArgb(28, 28, 34);
         lblBitrateBadge.Location = new Point(715, 16);
         lblBitrateBadge.Size = new Size(100, 30);
@@ -232,7 +232,7 @@ partial class ClientForm
         lblOverlaySource.Size = new Size(220, 26);
         lblOverlaySource.TextAlign = ContentAlignment.MiddleCenter;
 
-        // Overlay: TikTok LIVE badge (Top Right)
+        // Overlay: VisionAI LIVE tag (Top Right)
         lblOverlayLiveTag.Text = "LIVE";
         lblOverlayLiveTag.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
         lblOverlayLiveTag.ForeColor = Color.White;
@@ -335,7 +335,7 @@ partial class ClientForm
         cboCamera.DropDownStyle = ComboBoxStyle.DropDownList;
         cboCamera.Items.AddRange(new object[] { "Webcam 0 (Mặc định)", "Webcam 1 (Camera phụ)" });
         cboCamera.Location = new Point(98, 34);
-        cboCamera.Size = new Size(170, 23);
+        cboCamera.Size = new Size(175, 23);
         cboCamera.BackColor = Color.FromArgb(38, 38, 46);
         cboCamera.ForeColor = Color.White;
         cboCamera.FlatStyle = FlatStyle.Flat;
@@ -349,13 +349,13 @@ partial class ClientForm
         cboQuality.DropDownStyle = ComboBoxStyle.DropDownList;
         cboQuality.Items.AddRange(new object[]
         {
-            "40 (Tiết kiệm mạng)",
-            "60 (Chuẩn TikTok - Đề xuất)",
+            "40 (Tiết kiệm)",
+            "60 (Cân bằng - Đề xuất)",
             "70 (Độ nét cao)",
             "80 (Ultra HD)"
         });
         cboQuality.Location = new Point(98, 68);
-        cboQuality.Size = new Size(170, 23);
+        cboQuality.Size = new Size(175, 23);
         cboQuality.BackColor = Color.FromArgb(38, 38, 46);
         cboQuality.ForeColor = Color.White;
         cboQuality.FlatStyle = FlatStyle.Flat;
@@ -376,16 +376,16 @@ partial class ClientForm
         lblActionCardTitle.Location = new Point(10, 8);
         lblActionCardTitle.Size = new Size(260, 20);
 
-        // Big TikTok Live Red Button
+        // Big VisionAI Live Red Button
         btnStartStream.Text = "🔴 BẮT ĐẦU LIVE";
-        btnStartStream.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-        btnStartStream.BackColor = Color.FromArgb(254, 44, 85); // TikTok Red
+        btnStartStream.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+        btnStartStream.BackColor = Color.FromArgb(254, 44, 85);
         btnStartStream.ForeColor = Color.White;
         btnStartStream.FlatStyle = FlatStyle.Flat;
         btnStartStream.FlatAppearance.BorderSize = 0;
         btnStartStream.Cursor = Cursors.Hand;
         btnStartStream.Location = new Point(10, 32);
-        btnStartStream.Size = new Size(140, 38);
+        btnStartStream.Size = new Size(148, 38);
         btnStartStream.Click += btnStartStream_Click;
 
         // Stop Stream Button
@@ -397,7 +397,7 @@ partial class ClientForm
         btnStopStream.FlatAppearance.BorderSize = 0;
         btnStopStream.Cursor = Cursors.Hand;
         btnStopStream.Enabled = false;
-        btnStopStream.Location = new Point(156, 32);
+        btnStopStream.Location = new Point(164, 32);
         btnStopStream.Size = new Size(125, 38);
         btnStopStream.Click += btnStopStream_Click;
 
@@ -410,7 +410,7 @@ partial class ClientForm
         btnStartCamera.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 75);
         btnStartCamera.Cursor = Cursors.Hand;
         btnStartCamera.Location = new Point(10, 76);
-        btnStartCamera.Size = new Size(271, 30);
+        btnStartCamera.Size = new Size(279, 30);
         btnStartCamera.Click += btnStartCamera_Click;
 
         // Status Line
@@ -429,7 +429,7 @@ partial class ClientForm
         ClientSize = new Size(960, 700);
         MinimumSize = new Size(880, 620);
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "TikTok Live Studio - LAN Video Streaming (TV2 Client)";
+        Text = "VisionAI Live - LAN Video Streaming (TV2 Client)";
         BackColor = Color.FromArgb(12, 12, 15);
         ForeColor = Color.White;
 

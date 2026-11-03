@@ -10,7 +10,7 @@ using LanStream.Shared.Models;
 namespace LanStream.Client.Forms;
 
 /// <summary>
-/// Giao diện chính của ứng dụng LAN Video Streaming Client (Phong cách TikTok Live Studio).
+/// Giao diện chính của ứng dụng LAN Video Streaming Client (VisionAI Live).
 /// Phụ trách: TV2.
 /// </summary>
 public partial class ClientForm : Form
@@ -32,12 +32,12 @@ public partial class ClientForm : Form
         // Custom Paint for Preview placeholder
         picPreview.Paint += OnPicPreviewPaint;
 
-        // Duration timer for TikTok Live
+        // Duration timer for VisionAI Live
         _durationTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         _durationTimer.Tick += OnDurationTimerTick;
 
         cboCamera.SelectedIndex = 0;
-        cboQuality.SelectedIndex = 1; // 60 (Chuẩn TikTok)
+        cboQuality.SelectedIndex = 1; // 60 (Cân bằng - Đề xuất)
         UpdateLiveStatusUi(LiveState.Offline);
     }
 
@@ -53,10 +53,10 @@ public partial class ClientForm : Form
         if (picPreview.Image is null)
         {
             var rect = picPreview.ClientRectangle;
-            using var fontTitle = new Font("Segoe UI", 13F, FontStyle.Bold);
+            using var fontTitle = new Font("Segoe UI", 14F, FontStyle.Bold);
             using var fontSub = new Font("Segoe UI", 9.5F, FontStyle.Regular);
-            using var brushTitle = new SolidBrush(Color.FromArgb(254, 44, 85)); // TikTok Red
-            using var brushSub = new SolidBrush(Color.FromArgb(130, 130, 150));
+            using var brushTitle = new SolidBrush(Color.FromArgb(254, 44, 85)); // Accent Red
+            using var brushSub = new SolidBrush(Color.FromArgb(140, 140, 160));
             using var format = new StringFormat
             {
                 Alignment = StringAlignment.Center,
@@ -66,7 +66,7 @@ public partial class ClientForm : Form
             var rectTitle = new RectangleF(rect.X, rect.Y - 22, rect.Width, rect.Height);
             var rectSub = new RectangleF(rect.X, rect.Y + 22, rect.Width, rect.Height);
 
-            e.Graphics.DrawString("🎥 TIKTOK LAN LIVE STUDIO", fontTitle, brushTitle, rectTitle, format);
+            e.Graphics.DrawString("✦ VisionAI LIVE STUDIO", fontTitle, brushTitle, rectTitle, format);
             e.Graphics.DrawString("Webcam chưa mở • Nhấn 'Xem trước Camera' hoặc 'BẮT ĐẦU LIVE'", fontSub, brushSub, rectSub, format);
         }
     }
@@ -249,7 +249,7 @@ public partial class ClientForm : Form
             MessageBox.Show(
                 "Phần truyền tải UDP (TV3) hiện đang để trống:\n" + ex.Message +
                 "\n\nBạn có thể nhấn 'Xem trước Camera' để kiểm tra kết nối Webcam & Preview của TV2!",
-                "TikTok Live Studio - Thông báo",
+                "VisionAI Live - Thông báo",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
