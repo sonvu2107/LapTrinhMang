@@ -1,10 +1,14 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using LanStream.Client.Config;
 using LanStream.Network;
 using LanStream.Shared.Models;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 
 namespace LanStream.Client.Services;
 
@@ -19,7 +23,18 @@ public sealed class ClientStreamService : IDisposable
     private readonly FrameEncoder _frameEncoder;
     private readonly UdpFrameSender _udpSender;
     private CancellationTokenSource? _streamCts;
+    private IPEndPoint? _serverEndPoint;
+    private uint _streamId;
+    private uint _frameId;
+    private int _jpegQuality;
+    private int _isSending;
     private bool _disposed;
+
+    // Quản lý đo FPS và băng thông gửi thực tế
+    private readonly Stopwatch _statsStopwatch = Stopwatch.StartNew();
+    private readonly object _statsLock = new();
+    private int _framesSinceLastStats;
+    private long _bytesSinceLastStats;
 
     /// <summary>
     /// Sự kiện đẩy ảnh <see cref="Bitmap"/> lên giao diện <c>ClientForm</c> để hiển thị preview.
@@ -38,6 +53,8 @@ public sealed class ClientStreamService : IDisposable
 
     public bool IsStreaming { get; private set; }
 
+    public bool IsCameraRunning => _cameraService.IsRunning;
+
     public ClientStreamService(
         CameraService? cameraService = null,
         FrameEncoder? frameEncoder = null,
@@ -46,6 +63,31 @@ public sealed class ClientStreamService : IDisposable
         _cameraService = cameraService ?? new CameraService();
         _frameEncoder = frameEncoder ?? new FrameEncoder();
         _udpSender = udpSender ?? new UdpFrameSender();
+
+        _cameraService.FrameCaptured += HandleFrameCaptured;
+    }
+
+    /// <summary>
+    /// Mở camera xem trước cục bộ tại Client (chưa phát luồng UDP tới Server).
+    /// </summary>
+    public async Task StartCameraPreviewAsync(int cameraIndex, int width, int height, int targetFps)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _cameraService.StartAsync(cameraIndex, width, height, targetFps);
+    }
+
+    /// <summary>
+    /// Dừng camera xem trước nếu đang không stream.
+    /// </summary>
+    public async Task StopCameraAsync()
+    {
+        if (IsStreaming)
+        {
+            await StopStreamAsync();
+            return;
+        }
+
+        await _cameraService.StopAsync();
     }
 
     /// <summary>
@@ -55,21 +97,142 @@ public sealed class ClientStreamService : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // TODO [TV2]:
-        // 1. Kiểm tra định dạng IPAddress.TryParse(settings.ServerIp, ...) và cổng hợp lệ.
-        // 2. Khởi tạo StreamId ngẫu nhiên, đặt lại FrameId = 0 và Statistics.Reset().
-        // 3. Tạo _streamCts = new CancellationTokenSource(), lắng nghe _cameraService.FrameCaptured:
-        //    - Chuyển Mat sang Bitmap (OpenCvSharp.Extensions.BitmapConverter.ToBitmap) cho PreviewFrameReady.
-        //    - Nén JPEG qua _frameEncoder.EncodeJpeg(...) và gọi _udpSender.SendFrameAsync(...).
-        await Task.CompletedTask;
-        throw new NotImplementedException("TODO [TV2]: Triển khai luồng StartStreamAsync tích hợp Camera -> Encoder -> UDP.");
+        if (!IPAddress.TryParse(settings.ServerIp, out var ipAddress))
+        {
+            throw new ArgumentException($"Địa chỉ IP Server '{settings.ServerIp}' không hợp lệ.");
+        }
+
+        if (settings.ServerPort is < 1024 or > 65535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings.ServerPort), "Port phải nằm trong khoảng 1024 đến 65535.");
+        }
+
+        _serverEndPoint = new IPEndPoint(ipAddress, settings.ServerPort);
+        _streamId = (uint)Random.Shared.Next(1, int.MaxValue);
+        _frameId = 0;
+        _jpegQuality = settings.JpegQuality;
+
+        lock (_statsLock)
+        {
+            Statistics.Reset();
+            _framesSinceLastStats = 0;
+            _bytesSinceLastStats = 0;
+            _statsStopwatch.Restart();
+        }
+
+        _streamCts = new CancellationTokenSource();
+
+        if (!_cameraService.IsRunning)
+        {
+            await _cameraService.StartAsync(
+                settings.CameraIndex,
+                settings.FrameWidth,
+                settings.FrameHeight,
+                settings.TargetFps,
+                _streamCts.Token);
+        }
+
+        IsStreaming = true;
+    }
+
+    private void HandleFrameCaptured(Mat frame)
+    {
+        // 1. Chuyển đổi sang Bitmap để hiển thị preview cục bộ lên PictureBox
+        try
+        {
+            Bitmap previewBitmap = BitmapConverter.ToBitmap(frame);
+            OnPreviewFrameReady(previewBitmap);
+        }
+        catch
+        {
+            // Bỏ qua nếu Form đang đóng hoặc BitmapConverter gặp lỗi
+        }
+
+        // 2. Nếu đang bật Streaming và có cấu hình đích Server UDP
+        if (!IsStreaming || _serverEndPoint is null)
+        {
+            return;
+        }
+
+        // Bỏ qua nếu lượt gửi frame trước chưa xong (tránh dồn đống độ trễ khi mạng LAN bị nghẽn)
+        if (Interlocked.CompareExchange(ref _isSending, 1, 0) != 0)
+        {
+            lock (_statsLock)
+            {
+                Statistics.DroppedFrames++;
+            }
+            return;
+        }
+
+        byte[] jpegBytes;
+        try
+        {
+            jpegBytes = _frameEncoder.EncodeJpeg(frame, _jpegQuality);
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _isSending, 0);
+            return;
+        }
+
+        uint currentFrameId = _frameId++;
+        var endpoint = _serverEndPoint;
+        var token = _streamCts?.Token ?? default;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                int bytesSent = await _udpSender.SendFrameAsync(jpegBytes, _streamId, currentFrameId, endpoint, token);
+                UpdateStatistics(bytesSent);
+            }
+            catch (NotImplementedException)
+            {
+                // Nếu TV3 chưa viết xong UdpFrameSender, không làm sập camera preview
+            }
+            catch (Exception)
+            {
+                lock (_statsLock)
+                {
+                    Statistics.DroppedFrames++;
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _isSending, 0);
+            }
+        }, token);
+    }
+
+    private void UpdateStatistics(int bytesSent)
+    {
+        lock (_statsLock)
+        {
+            Statistics.CompletedFrames++;
+            Statistics.TotalBytesTransferred += bytesSent;
+            _framesSinceLastStats++;
+            _bytesSinceLastStats += bytesSent;
+
+            long elapsedMs = _statsStopwatch.ElapsedMilliseconds;
+            if (elapsedMs >= 1000)
+            {
+                Statistics.CurrentFps = Math.Round((_framesSinceLastStats * 1000.0) / elapsedMs, 1);
+                Statistics.EstimatedBitrateKbps = Math.Round((_bytesSinceLastStats * 8.0) / elapsedMs, 1);
+                _framesSinceLastStats = 0;
+                _bytesSinceLastStats = 0;
+                _statsStopwatch.Restart();
+                OnStatisticsUpdated();
+            }
+        }
     }
 
     /// <summary>
-    /// Dừng phiên truyền phát hiện tại một cách an toàn, không làm treo UI.
+    /// Dừng phiên truyền phát hiện tại an toàn, không làm treo UI.
     /// </summary>
     public async Task StopStreamAsync()
     {
+        IsStreaming = false;
+
         if (_streamCts is not null)
         {
             await _streamCts.CancelAsync();
@@ -78,7 +241,6 @@ public sealed class ClientStreamService : IDisposable
         }
 
         await _cameraService.StopAsync();
-        IsStreaming = false;
     }
 
     public void Dispose()
@@ -88,6 +250,7 @@ public sealed class ClientStreamService : IDisposable
             return;
         }
 
+        _cameraService.FrameCaptured -= HandleFrameCaptured;
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _cameraService.Dispose();

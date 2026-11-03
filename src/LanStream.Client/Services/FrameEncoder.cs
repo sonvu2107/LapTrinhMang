@@ -18,9 +18,20 @@ public sealed class FrameEncoder
     /// <returns>Mảng byte ảnh JPEG đã nén.</returns>
     public byte[] EncodeJpeg(Mat frame, int quality = ProtocolConstants.DefaultJpegQuality)
     {
-        // TODO [TV2]:
-        // Sử dụng Cv2.ImEncode(".jpg", frame, out byte[] jpegBytes, new ImageEncodingParam(ImwriteFlags.JpegQuality, quality))
-        // và trả về mảng jpegBytes.
-        throw new NotImplementedException("TODO [TV2]: Triển khai nén Mat sang mảng byte JPEG.");
+        if (frame is null || frame.Empty())
+        {
+            throw new ArgumentException("Khung hình không hợp lệ hoặc rỗng.", nameof(frame));
+        }
+
+        int clampedQuality = Math.Clamp(quality, 1, 100);
+        var encoderParams = new ImageEncodingParam(ImwriteFlags.JpegQuality, clampedQuality);
+
+        Cv2.ImEncode(".jpg", frame, out byte[] jpegBytes, encoderParams);
+        if (jpegBytes is null || jpegBytes.Length == 0)
+        {
+            throw new InvalidOperationException("Không thể nén khung hình sang định dạng JPEG.");
+        }
+
+        return jpegBytes;
     }
 }
