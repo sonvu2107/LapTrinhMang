@@ -10,7 +10,7 @@ using LanStream.Shared.Models;
 namespace LanStream.Client.Forms;
 
 /// <summary>
-/// Giao diện chính của ứng dụng LAN Video Streaming Client (VisionAI Live).
+/// Giao diện chính của ứng dụng LAN Video Streaming Client (LANstream).
 /// Phụ trách: TV2.
 /// </summary>
 public partial class ClientForm : Form
@@ -32,7 +32,7 @@ public partial class ClientForm : Form
         // Custom Paint for Preview placeholder
         picPreview.Paint += OnPicPreviewPaint;
 
-        // Duration timer for VisionAI Live
+        // Duration timer for LANstream Live
         _durationTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         _durationTimer.Tick += OnDurationTimerTick;
 
@@ -66,7 +66,7 @@ public partial class ClientForm : Form
             var rectTitle = new RectangleF(rect.X, rect.Y - 22, rect.Width, rect.Height);
             var rectSub = new RectangleF(rect.X, rect.Y + 22, rect.Width, rect.Height);
 
-            e.Graphics.DrawString("✦ VisionAI LIVE STUDIO", fontTitle, brushTitle, rectTitle, format);
+            e.Graphics.DrawString("✦ LANstream LIVE STUDIO", fontTitle, brushTitle, rectTitle, format);
             e.Graphics.DrawString("Webcam chưa mở • Nhấn 'Xem trước Camera' hoặc 'BẮT ĐẦU LIVE'", fontSub, brushSub, rectSub, format);
         }
     }
@@ -249,7 +249,7 @@ public partial class ClientForm : Form
             MessageBox.Show(
                 "Phần truyền tải UDP (TV3) hiện đang để trống:\n" + ex.Message +
                 "\n\nBạn có thể nhấn 'Xem trước Camera' để kiểm tra kết nối Webcam & Preview của TV2!",
-                "VisionAI Live - Thông báo",
+                "LANstream - Thông báo",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }

@@ -125,7 +125,7 @@ partial class ClientForm
         SuspendLayout();
 
         // ==========================================
-        // HEADER BAR (VisionAI Live Style)
+        // HEADER BAR (LANstream Style)
         // ==========================================
         pnlHeader.Dock = DockStyle.Top;
         pnlHeader.Height = 64;
@@ -138,8 +138,8 @@ partial class ClientForm
             lblFpsBadge, lblBitrateBadge, lblFramesBadge
         });
 
-        // VisionAI Icon / Glow Logo
-        lblLogoIcon.Text = "👁";
+        // LANstream Icon / Glow Logo
+        lblLogoIcon.Text = "📡";
         lblLogoIcon.Font = new Font("Segoe UI Emoji", 16F, FontStyle.Regular);
         lblLogoIcon.ForeColor = Color.FromArgb(254, 44, 85);
         lblLogoIcon.Location = new Point(14, 12);
@@ -147,14 +147,14 @@ partial class ClientForm
         lblLogoIcon.TextAlign = ContentAlignment.MiddleCenter;
 
         // Title
-        lblTitle.Text = "VisionAI LIVE";
+        lblTitle.Text = "LANstream";
         lblTitle.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
         lblTitle.ForeColor = Color.White;
         lblTitle.Location = new Point(52, 9);
         lblTitle.AutoSize = true;
 
         // Subtitle
-        lblSubtitle.Text = "LAN Streaming Client • OpenCvSharp & UDP";
+        lblSubtitle.Text = "LAN Video Streaming Client • OpenCvSharp & UDP";
         lblSubtitle.Font = new Font("Segoe UI", 8F, FontStyle.Regular);
         lblSubtitle.ForeColor = Color.FromArgb(140, 140, 155);
         lblSubtitle.Location = new Point(54, 34);
@@ -232,7 +232,7 @@ partial class ClientForm
         lblOverlaySource.Size = new Size(220, 26);
         lblOverlaySource.TextAlign = ContentAlignment.MiddleCenter;
 
-        // Overlay: VisionAI LIVE tag (Top Right)
+        // Overlay: LANstream LIVE tag (Top Right)
         lblOverlayLiveTag.Text = "LIVE";
         lblOverlayLiveTag.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
         lblOverlayLiveTag.ForeColor = Color.White;
@@ -376,7 +376,7 @@ partial class ClientForm
         lblActionCardTitle.Location = new Point(10, 8);
         lblActionCardTitle.Size = new Size(260, 20);
 
-        // Big VisionAI Live Red Button
+        // Big LANstream Live Red Button
         btnStartStream.Text = "🔴 BẮT ĐẦU LIVE";
         btnStartStream.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
         btnStartStream.BackColor = Color.FromArgb(254, 44, 85);
@@ -405,7 +405,7 @@ partial class ClientForm
         btnStartCamera.Text = "👁 Xem trước Camera";
         btnStartCamera.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         btnStartCamera.BackColor = Color.FromArgb(38, 38, 48);
-        btnStartCamera.ForeColor = Color.FromArgb(37, 244, 238); // Cyan
+        btnStartCamera.ForeColor = Color.FromArgb(37, 244, 238);
         btnStartCamera.FlatStyle = FlatStyle.Flat;
         btnStartCamera.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 75);
         btnStartCamera.Cursor = Cursors.Hand;
@@ -429,7 +429,7 @@ partial class ClientForm
         ClientSize = new Size(960, 700);
         MinimumSize = new Size(880, 620);
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "VisionAI Live - LAN Video Streaming (TV2 Client)";
+        Text = "LANstream - LAN Video Streaming (TV2 Client)";
         BackColor = Color.FromArgb(12, 12, 15);
         ForeColor = Color.White;
 
