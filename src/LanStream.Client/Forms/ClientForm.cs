@@ -36,9 +36,41 @@ public partial class ClientForm : Form
         _durationTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         _durationTimer.Tick += OnDurationTimerTick;
 
+        pnlServerCard.Paint += OnDashboardCardPaint;
+        pnlSettingsCard.Paint += OnDashboardCardPaint;
+        pnlActionCard.Paint += OnDashboardCardPaint;
+        Resize += OnClientFormResize;
+        LayoutHeaderBadges();
+
         cboCamera.SelectedIndex = 0;
         cboQuality.SelectedIndex = 1; // 60 (Cân bằng - Đề xuất)
         UpdateLiveStatusUi(LiveState.Offline);
+    }
+
+    private void OnClientFormResize(object? sender, EventArgs e)
+    {
+        LayoutHeaderBadges();
+    }
+
+    private void LayoutHeaderBadges()
+    {
+        const int rightMargin = 16;
+        const int badgeGap = 8;
+
+        lblFramesBadge.Left = pnlHeader.ClientSize.Width - rightMargin - lblFramesBadge.Width;
+        lblBitrateBadge.Left = lblFramesBadge.Left - badgeGap - lblBitrateBadge.Width;
+        lblFpsBadge.Left = lblBitrateBadge.Left - badgeGap - lblFpsBadge.Width;
+        pnlLiveBadge.Left = Math.Max(lblSubtitle.Right + 24,
+            lblFpsBadge.Left - badgeGap - pnlLiveBadge.Width);
+    }
+
+    private void OnDashboardCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is Control card)
+        {
+            using var borderPen = new Pen(Color.FromArgb(48, 48, 60));
+            e.Graphics.DrawRectangle(borderPen, 0, 0, card.Width - 1, card.Height - 1);
+        }
     }
 
     private enum LiveState

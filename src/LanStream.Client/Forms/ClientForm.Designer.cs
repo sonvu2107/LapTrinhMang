@@ -194,6 +194,7 @@ partial class ClientForm
         lblFpsBadge.BackColor = Color.FromArgb(28, 28, 34);
         lblFpsBadge.Location = new Point(620, 16);
         lblFpsBadge.Size = new Size(85, 30);
+        lblFpsBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         lblFpsBadge.TextAlign = ContentAlignment.MiddleCenter;
 
         lblBitrateBadge.Text = "📶 0 Kbps";
@@ -202,6 +203,7 @@ partial class ClientForm
         lblBitrateBadge.BackColor = Color.FromArgb(28, 28, 34);
         lblBitrateBadge.Location = new Point(715, 16);
         lblBitrateBadge.Size = new Size(100, 30);
+        lblBitrateBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         lblBitrateBadge.TextAlign = ContentAlignment.MiddleCenter;
 
         lblFramesBadge.Text = "📦 0 f";
@@ -210,6 +212,7 @@ partial class ClientForm
         lblFramesBadge.BackColor = Color.FromArgb(28, 28, 34);
         lblFramesBadge.Location = new Point(825, 16);
         lblFramesBadge.Size = new Size(95, 30);
+        lblFramesBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         lblFramesBadge.TextAlign = ContentAlignment.MiddleCenter;
 
         // ==========================================
@@ -239,6 +242,7 @@ partial class ClientForm
         lblOverlayLiveTag.BackColor = Color.FromArgb(200, 254, 44, 85);
         lblOverlayLiveTag.Location = new Point(860, 24);
         lblOverlayLiveTag.Size = new Size(54, 26);
+        lblOverlayLiveTag.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         lblOverlayLiveTag.TextAlign = ContentAlignment.MiddleCenter;
         lblOverlayLiveTag.Visible = false;
 
@@ -426,8 +430,8 @@ partial class ClientForm
         // ==========================================
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(960, 700);
-        MinimumSize = new Size(880, 620);
+        ClientSize = new Size(1100, 760);
+        MinimumSize = new Size(960, 650);
         StartPosition = FormStartPosition.CenterScreen;
         Text = "LANstream - LAN Video Streaming (TV2 Client)";
         BackColor = Color.FromArgb(12, 12, 15);
