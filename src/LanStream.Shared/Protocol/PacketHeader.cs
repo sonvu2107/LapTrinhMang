@@ -27,6 +27,7 @@ public readonly record struct PacketHeader(
     public bool IsValid =>
         Magic == ProtocolConstants.Magic &&
         Version == ProtocolConstants.CurrentVersion &&
+        Flags == ProtocolConstants.FlagData &&
         ChunkCount >= 1 &&
         ChunkCount <= ProtocolConstants.MaxChunksPerFrame &&
         ChunkIndex < ChunkCount;

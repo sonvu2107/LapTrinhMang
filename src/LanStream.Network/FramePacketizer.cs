@@ -36,10 +36,41 @@ public sealed class FramePacketizer
         uint frameId,
         long? timestampMs = null)
     {
-        // TODO [TV3]:
-        // 1. Kiểm tra jpegBytes.Length > 0 và <= ProtocolConstants.MaxFrameSizeBytes.
-        // 2. Tính chunkCount = (ushort)Math.Ceiling((double)jpegBytes.Length / _maxPayloadSize).
-        // 3. Tạo PacketHeader cho từng chunkIndex (0 .. chunkCount - 1) và gọi PacketSerializer.SerializePacket.
-        throw new NotImplementedException("TODO [TV3]: Triển khai chia nhỏ JPEG thành các gói UDP.");
+        if (jpegBytes.IsEmpty || jpegBytes.Length > ProtocolConstants.MaxFrameSizeBytes)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(jpegBytes),
+                $"Frame size must be between 1 and {ProtocolConstants.MaxFrameSizeBytes} bytes.");
+        }
+
+        int chunkCount = (jpegBytes.Length + _maxPayloadSize - 1) / _maxPayloadSize;
+        if (chunkCount > ProtocolConstants.MaxChunksPerFrame)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(jpegBytes),
+                $"Frame requires more than {ProtocolConstants.MaxChunksPerFrame} chunks.");
+        }
+
+        long frameTimestampMs = timestampMs ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var packets = new byte[chunkCount][];
+        for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+        {
+            int offset = chunkIndex * _maxPayloadSize;
+            int payloadLength = Math.Min(_maxPayloadSize, jpegBytes.Length - offset);
+            var header = new PacketHeader(
+                Magic: ProtocolConstants.Magic,
+                Version: ProtocolConstants.CurrentVersion,
+                Flags: ProtocolConstants.FlagData,
+                StreamId: streamId,
+                FrameId: frameId,
+                ChunkIndex: (ushort)chunkIndex,
+                ChunkCount: (ushort)chunkCount,
+                TimestampMs: frameTimestampMs);
+            packets[chunkIndex] = PacketSerializer.SerializePacket(
+                header,
+                jpegBytes.Slice(offset, payloadLength));
+        }
+
+        return packets;
     }
 }

@@ -55,3 +55,7 @@ recordings/*.png
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Bản ZIP và thư mục giải nén dùng để ghép mã nguồn TV3
+/LapTrinhMang-main (2).zip
+/LapTrinhMang-main (2)/

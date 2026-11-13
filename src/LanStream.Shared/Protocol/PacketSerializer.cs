@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 
 namespace LanStream.Shared.Protocol;
 
@@ -17,9 +18,28 @@ public static class PacketSerializer
     /// <returns>Mảng byte hoàn chỉnh để gửi qua UDP.</returns>
     public static byte[] SerializePacket(in PacketHeader header, ReadOnlySpan<byte> payload)
     {
-        // TODO [TV3]: Sử dụng BinaryPrimitives.WriteUInt16BigEndian / WriteUInt32BigEndian / WriteInt64BigEndian
-        // để ghi 24 byte header theo bảng offset tại docs/UDP_PROTOCOL.md, sau đó copy payload vào sau offset 24.
-        throw new NotImplementedException("TODO [TV3]: Triển khai SerializePacket theo chuẩn Big-Endian.");
+        if (!header.IsValid)
+        {
+            throw new ArgumentException("Packet header is invalid.", nameof(header));
+        }
+
+        if (payload.Length > ProtocolConstants.MaxPayloadSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(payload), "Payload exceeds the UDP datagram limit.");
+        }
+
+        byte[] datagram = new byte[ProtocolConstants.HeaderSize + payload.Length];
+        Span<byte> headerBytes = datagram.AsSpan(0, ProtocolConstants.HeaderSize);
+        BinaryPrimitives.WriteUInt16BigEndian(headerBytes, header.Magic);
+        headerBytes[2] = header.Version;
+        headerBytes[3] = header.Flags;
+        BinaryPrimitives.WriteUInt32BigEndian(headerBytes[4..], header.StreamId);
+        BinaryPrimitives.WriteUInt32BigEndian(headerBytes[8..], header.FrameId);
+        BinaryPrimitives.WriteUInt16BigEndian(headerBytes[12..], header.ChunkIndex);
+        BinaryPrimitives.WriteUInt16BigEndian(headerBytes[14..], header.ChunkCount);
+        BinaryPrimitives.WriteInt64BigEndian(headerBytes[16..], header.TimestampMs);
+        payload.CopyTo(datagram.AsSpan(ProtocolConstants.HeaderSize));
+        return datagram;
     }
 
     /// <summary>
@@ -34,10 +54,31 @@ public static class PacketSerializer
         out PacketHeader header,
         out ReadOnlySpan<byte> payload)
     {
-        // TODO [TV3]: Kiểm tra datagram.Length >= 24 && <= 1200, đọc Big-Endian các trường Header,
-        // kiểm tra header.IsValid và cắt lát payload = datagram.Slice(ProtocolConstants.HeaderSize).
         header = default;
         payload = default;
-        throw new NotImplementedException("TODO [TV3]: Triển khai TryDeserializePacket.");
+        if (datagram.Length < ProtocolConstants.HeaderSize ||
+            datagram.Length > ProtocolConstants.MaxDatagramSize)
+        {
+            return false;
+        }
+
+        header = new PacketHeader(
+            Magic: BinaryPrimitives.ReadUInt16BigEndian(datagram),
+            Version: datagram[2],
+            Flags: datagram[3],
+            StreamId: BinaryPrimitives.ReadUInt32BigEndian(datagram[4..]),
+            FrameId: BinaryPrimitives.ReadUInt32BigEndian(datagram[8..]),
+            ChunkIndex: BinaryPrimitives.ReadUInt16BigEndian(datagram[12..]),
+            ChunkCount: BinaryPrimitives.ReadUInt16BigEndian(datagram[14..]),
+            TimestampMs: BinaryPrimitives.ReadInt64BigEndian(datagram[16..]));
+
+        if (!header.IsValid)
+        {
+            header = default;
+            return false;
+        }
+
+        payload = datagram[ProtocolConstants.HeaderSize..];
+        return true;
     }
 }

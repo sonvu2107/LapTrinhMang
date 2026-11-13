@@ -1,5 +1,6 @@
 using System.Net;
 using LanStream.Network;
+using LanStream.Shared.Protocol;
 using Xunit;
 
 namespace LanStream.Tests;
@@ -11,7 +12,40 @@ namespace LanStream.Tests;
 /// </summary>
 public class FrameAssemblerTests
 {
-    [Fact(Skip = "TODO [TV3]: Bỏ Skip sau khi hoàn thiện FramePacketizer và FrameAssembler (TC07)")]
+    [Fact]
+    public async Task TryAddPacket_LastChunkAfterTimeout_DoesNotCompleteExpiredFrame()
+    {
+        var packets = new FramePacketizer().Packetize(new byte[1500], 1, 1);
+        var assembler = new FrameAssembler(frameTimeoutMs: 30);
+        var endpoint = new IPEndPoint(IPAddress.Loopback, 54321);
+
+        Assert.False(assembler.TryAddPacket(endpoint, packets[0], out _));
+        await Task.Delay(80);
+
+        Assert.False(assembler.TryAddPacket(endpoint, packets[1], out _));
+        Assert.Equal(1, assembler.DroppedFrames);
+    }
+
+    [Fact]
+    public void TryAddPacket_DuplicateChunkAndSeparateSenders_PreservesEachFrame()
+    {
+        var packets = new FramePacketizer().Packetize(new byte[1500], 1, 1);
+        var assembler = new FrameAssembler();
+        var first = new IPEndPoint(IPAddress.Loopback, 54321);
+        var second = new IPEndPoint(IPAddress.Loopback, 54322);
+
+        Assert.False(assembler.TryAddPacket(first, packets[0], out _));
+        Assert.False(assembler.TryAddPacket(first, packets[0], out _));
+        Assert.False(assembler.TryAddPacket(second, packets[1], out _));
+        Assert.True(assembler.TryAddPacket(first, packets[1], out var firstFrame));
+        Assert.True(assembler.TryAddPacket(second, packets[0], out var secondFrame));
+        Assert.Equal(first, firstFrame!.RemoteEndPoint);
+        Assert.Equal(second, secondFrame!.RemoteEndPoint);
+        Assert.Equal(1500, firstFrame.JpegBytes.Length);
+        Assert.Equal(0, assembler.DroppedFrames);
+    }
+
+    [Fact]
     public void TryAddPacket_OutOfOrderChunks_ReassemblesOriginalJpeg()
     {
         var packetizer = new FramePacketizer();
@@ -36,7 +70,7 @@ public class FrameAssemblerTests
         Assert.Equal(fakeJpeg, frame!.JpegBytes);
     }
 
-    [Fact(Skip = "TODO [TV3]: Bỏ Skip sau khi hoàn thiện CleanupExpiredFrames (TC08)")]
+    [Fact]
     public async System.Threading.Tasks.Task CleanupExpiredFrames_MissingChunkAfterTimeout_DropsIncompleteFrame()
     {
         var packetizer = new FramePacketizer();
@@ -53,5 +87,16 @@ public class FrameAssemblerTests
         int dropped = assembler.CleanupExpiredFrames();
 
         Assert.Equal(1, dropped);
+        Assert.Equal(1, assembler.DroppedFrames);
+    }
+
+    [Fact]
+    public void Packetize_RejectsEmptyOrOversizedFrames()
+    {
+        var packetizer = new FramePacketizer();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => packetizer.Packetize([], 1, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => packetizer.Packetize(new byte[ProtocolConstants.MaxFrameSizeBytes + 1], 1, 1));
     }
 }

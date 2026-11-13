@@ -40,12 +40,21 @@ public sealed class UdpFrameSender : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // TODO [TV3]:
-        // 1. Gọi _packetizer.Packetize(jpegBytes, streamId, frameId) để lấy danh sách datagram.
-        // 2. Dùng await _udpClient.SendAsync(packet, serverEndPoint, cancellationToken) gửi từng gói.
-        // 3. Cộng dồn và trả về tổng số byte đã gửi để phục vụ thống kê băng thông.
-        await Task.CompletedTask;
-        throw new NotImplementedException("TODO [TV3]: Triển khai gửi các chunk UDP bất đồng bộ.");
+        ArgumentNullException.ThrowIfNull(jpegBytes);
+        ArgumentNullException.ThrowIfNull(serverEndPoint);
+
+        IReadOnlyList<byte[]> packets = _packetizer.Packetize(jpegBytes, streamId, frameId);
+        int totalBytesSent = 0;
+        foreach (byte[] packet in packets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            totalBytesSent += await _udpClient.SendAsync(
+                packet,
+                serverEndPoint,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return totalBytesSent;
     }
 
     public void Dispose()

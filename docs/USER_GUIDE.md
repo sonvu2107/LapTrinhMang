@@ -35,7 +35,8 @@ dotnet run --project src/LanStream.Server
 ```
 1. Kiểm tra ô **Listening Port** (mặc định `5000`).
 2. Nhấn **Start Server** để bắt đầu lắng nghe luồng video.
-3. (Tùy chọn) Nhấn **Record** để lưu video vào thư mục `recordings/` hoặc bật **Face Detection** để phát hiện khuôn mặt.
+3. (Tùy chọn) Nhấn **Record** để lưu video vào thư mục `recordings/`.
+4. Để bật **Face Detection**, đặt tệp Haar Cascade XML tại đường dẫn `assets/models/haarcascade_frontalface_default.xml` (hoặc cập nhật `FaceModelPath` trong cấu hình). Server sẽ báo lỗi rõ ràng nếu tệp không tồn tại hoặc không đọc được.
 
 ### Bước 2: Chạy ứng dụng Client
 ```powershell
@@ -43,5 +44,11 @@ dotnet run --project src/LanStream.Client
 ```
 1. Nhập địa chỉ IP của máy Server vào ô **Server IP** (dùng `127.0.0.1` nếu chạy thử trên cùng một máy).
 2. Nhập **Port** `5000`, chọn thiết bị **Camera** và mức chất lượng nén JPEG.
-3. Nhấn **Start Stream** để mở webcam và truyền hình ảnh sang Server.
-4. Nhấn **Stop** khi muốn kết thúc phiên truyền.
+3. Có thể nhấn **Start Camera** để xem preview cục bộ; nhấn **Stop** để dừng preview.
+4. Nhấn **Start Stream** để mở webcam, nén JPEG và truyền hình ảnh sang Server.
+5. Nhấn **Stop** khi muốn kết thúc phiên truyền.
+
+## 5. Ghi chú vận hành
+- Client giữ tối đa một frame đang chờ gửi; nếu gửi chậm hơn tốc độ camera thì frame mới sẽ bị bỏ để hạn chế độ trễ tăng dần.
+- UDP không đảm bảo giao nhận. Server ghép các chunk trong thời gian chờ cấu hình; frame thiếu chunk sẽ bị loại bỏ, không truyền lại.
+- FPS/băng thông là ước tính theo dữ liệu chạy thực tế. Kiểm thử camera, codec ghi video, firewall và mạng LAN cần thực hiện trên máy Windows có thiết bị tương ứng.

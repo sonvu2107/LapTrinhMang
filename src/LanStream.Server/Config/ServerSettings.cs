@@ -3,33 +3,57 @@ using LanStream.Shared.Protocol;
 namespace LanStream.Server.Config;
 
 /// <summary>
-/// Cấu hình lắng nghe mạng, lưu trữ video và nhận diện khuôn mặt của Server.
-/// Phụ trách: TV1.
+/// Configuration settings for the LAN Video Streaming Server.
 /// </summary>
 public sealed class ServerSettings
 {
-    /// <summary>
-    /// Cổng UDP lắng nghe các gói video gửi tới.
-    /// </summary>
     public int ListenPort { get; set; } = ProtocolConstants.DefaultUdpPort;
 
-    /// <summary>
-    /// Thời gian chờ tối đa (ms) để ghép đủ các chunk của một khung hình trước khi hủy bỏ.
-    /// </summary>
+    public int TargetFps { get; set; } = ProtocolConstants.DefaultTargetFps;
+
+    public int FrameWidth { get; set; } = ProtocolConstants.DefaultFrameWidth;
+
+    public int FrameHeight { get; set; } = ProtocolConstants.DefaultFrameHeight;
+
     public int FrameTimeoutMs { get; set; } = ProtocolConstants.DefaultFrameTimeoutMs;
 
-    /// <summary>
-    /// Thư mục lưu các tệp video được ghi hình trên Server.
-    /// </summary>
+    public int SignalLossTimeoutMs { get; set; } = 2500;
+
+    public int MaxDecodeQueueSize { get; set; } = 2;
+
     public string RecordingsDirectory { get; set; } = "recordings";
 
-    /// <summary>
-    /// Đường dẫn tới tệp model phát hiện khuôn mặt (Haar Cascade .xml hoặc YuNet .onnx).
-    /// </summary>
     public string FaceModelPath { get; set; } = "assets/models/haarcascade_frontalface_default.xml";
 
-    /// <summary>
-    /// Bật/tắt chế độ phát hiện khuôn mặt trên khung hình nhận được.
-    /// </summary>
     public bool EnableFaceDetection { get; set; }
+
+    public bool Validate(out string errorMessage)
+    {
+        if (ListenPort is < 1024 or > 65535)
+        {
+            errorMessage = "UDP port must be between 1024 and 65535.";
+            return false;
+        }
+
+        if (TargetFps is < 1 or > 60)
+        {
+            errorMessage = "Target FPS must be between 1 and 60.";
+            return false;
+        }
+
+        if (FrameWidth <= 0 || FrameHeight <= 0)
+        {
+            errorMessage = "Frame dimensions must be greater than zero.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(RecordingsDirectory))
+        {
+            errorMessage = "Recordings directory cannot be empty.";
+            return false;
+        }
+
+        errorMessage = string.Empty;
+        return true;
+    }
 }

@@ -1,5 +1,9 @@
 using System;
 using System.Drawing;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Threading;
 using System.Windows.Forms;
 using LanStream.Server.Config;
 using LanStream.Server.Services;
@@ -8,13 +12,16 @@ using LanStream.Shared.Models;
 namespace LanStream.Server.Forms;
 
 /// <summary>
-/// Giao diện chính của ứng dụng LAN Video Streaming Server.
-/// Phụ trách: TV1.
+/// Main Windows Forms window for the LAN Video Streaming Server.
 /// </summary>
 public partial class ServerForm : Form
 {
     private readonly ServerStreamService _serverService;
     private readonly ServerSettings _settings;
+
+    private int _isUiFrameUpdatePending;
+    private bool _isClosingForm;
+    private bool _closeReady;
 
     public ServerForm()
     {
@@ -22,106 +29,307 @@ public partial class ServerForm : Form
 
         _settings = new ServerSettings();
         _serverService = new ServerStreamService();
-        _serverService.FrameDecoded += OnFrameDecoded;
+
+        InitializeServerUI();
     }
 
-    private void OnFrameDecoded(Bitmap bitmap, VideoFrame frame)
+    private void InitializeServerUI()
     {
-        if (InvokeRequired)
+        numListenPort.Value = _settings.ListenPort;
+        lblServerIp.Text = $"Server IP: {DetectLocalLanIpv4()}";
+        UpdateButtonStates(isServerRunning: false, isRecording: false);
+
+        _serverService.FrameDecoded += OnServiceFrameDecoded;
+        _serverService.StatisticsUpdated += OnServiceStatisticsUpdated;
+        _serverService.StatusChanged += UpdateServerStatus;
+        _serverService.ErrorOccurred += OnServiceErrorOccurred;
+    }
+
+    private async void StartServer_Click(object? sender, EventArgs e)
+    {
+        try
         {
-            BeginInvoke(() => UpdateVideoView(bitmap, frame));
+            ApplySettingsFromControls();
+            UpdateButtonStates(isServerRunning: true, isRecording: false);
+
+            await _serverService.StartAsync(_settings);
+        }
+        catch (Exception ex)
+        {
+            UpdateButtonStates(isServerRunning: false, isRecording: false);
+            UpdateServerStatus("Failed to start");
+            MessageBox.Show(ex.Message, "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private async void StopServer_Click(object? sender, EventArgs e)
+    {
+        btnStopServer.Enabled = false;
+        btnStartRecording.Enabled = false;
+        btnStopRecording.Enabled = false;
+        await _serverService.StopAsync();
+
+        UpdateButtonStates(isServerRunning: false, isRecording: false);
+        lblRecordingPath.Text = "Recording: Off";
+        lblRecordingPath.ForeColor = Color.DimGray;
+    }
+
+    private void StartRecording_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            string savedPath = _serverService.StartRecording();
+            UpdateButtonStates(isServerRunning: _serverService.IsRunning, isRecording: true);
+
+            lblRecordingPath.Text = $"Recording: On ({savedPath})";
+            lblRecordingPath.ForeColor = Color.Firebrick;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Unable to start video recording:\n{ex.Message}",
+                "Recording Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void StopRecording_Click(object? sender, EventArgs e)
+    {
+        string? lastPath = _serverService.CurrentRecordingPath;
+        _serverService.StopRecording();
+
+        UpdateButtonStates(isServerRunning: _serverService.IsRunning, isRecording: false);
+        lblRecordingPath.Text = lastPath is not null
+            ? $"Recording: Saved to {lastPath}"
+            : "Recording: Off";
+        lblRecordingPath.ForeColor = Color.SeaGreen;
+    }
+
+    private void ChkFaceDetection_CheckedChanged(object? sender, EventArgs e)
+    {
+        bool enabled = chkFaceDetection.Checked;
+        bool modelReady = _serverService.SetFaceDetectionEnabled(enabled);
+
+        if (enabled && !modelReady)
+        {
+            UpdateServerStatus($"Face model not found at '{_settings.FaceModelPath}'");
+        }
+    }
+
+    private void OnServiceFrameDecoded(Bitmap frameBitmap, VideoFrame metadata)
+    {
+        if (_isClosingForm || IsDisposed || !IsHandleCreated)
+        {
+            frameBitmap.Dispose();
             return;
         }
 
-        UpdateVideoView(bitmap, frame);
-    }
+        if (!InvokeRequired)
+        {
+            UpdateVideoFrame(frameBitmap);
+            return;
+        }
 
-    private void UpdateVideoView(Bitmap newBitmap, VideoFrame frame)
-    {
-        var oldImage = picReceivedVideo.Image;
-        picReceivedVideo.Image = newBitmap;
-        oldImage?.Dispose();
+        if (Interlocked.CompareExchange(ref _isUiFrameUpdatePending, 1, 0) != 0)
+        {
+            frameBitmap.Dispose();
+            return;
+        }
 
-        lblClientStatus.Text = $"Source: {frame.RemoteEndPoint} | Đang nhận video";
-    }
-
-    private async void btnStartServer_Click(object? sender, EventArgs e)
-    {
         try
         {
-            _settings.ListenPort = (int)numListenPort.Value;
-            _settings.EnableFaceDetection = chkFaceDetection.Checked;
-
-            btnStartServer.Enabled = false;
-            btnStopServer.Enabled = true;
-            lblClientStatus.Text = $"Listening on UDP {_settings.ListenPort} - Waiting for video...";
-
-            await _serverService.StartServerAsync(_settings);
+            BeginInvoke(() =>
+            {
+                try
+                {
+                    UpdateVideoFrame(frameBitmap);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _isUiFrameUpdatePending, 0);
+                }
+            });
         }
-        catch (NotImplementedException ex)
+        catch (ObjectDisposedException)
         {
-            btnStartServer.Enabled = true;
-            btnStopServer.Enabled = false;
-            lblClientStatus.Text = "Waiting for video... (Skeleton)";
-            MessageBox.Show(ex.Message, "Thông báo khung dự án", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Interlocked.Exchange(ref _isUiFrameUpdatePending, 0);
+            frameBitmap.Dispose();
         }
-        catch (Exception ex)
+        catch (InvalidOperationException)
         {
-            btnStartServer.Enabled = true;
-            btnStopServer.Enabled = false;
-            lblClientStatus.Text = "Lỗi khởi động Server";
-            MessageBox.Show(ex.Message, "Lỗi Server", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Interlocked.Exchange(ref _isUiFrameUpdatePending, 0);
+            frameBitmap.Dispose();
         }
     }
 
-    private async void btnStopServer_Click(object? sender, EventArgs e)
+    public void UpdateVideoFrame(Bitmap frame)
     {
-        await _serverService.StopServerAsync();
-        btnStartServer.Enabled = true;
+        if (_isClosingForm || IsDisposed)
+        {
+            frame.Dispose();
+            return;
+        }
+
+        Image? previousImage = picReceivedVideo.Image;
+        picReceivedVideo.Image = frame;
+        previousImage?.Dispose();
+    }
+
+    public void UpdateServerStatus(string status)
+    {
+        if (_isClosingForm || IsDisposed)
+        {
+            return;
+        }
+
+        if (InvokeRequired && IsHandleCreated)
+        {
+            BeginInvoke(() => UpdateServerStatus(status));
+            return;
+        }
+
+        lblClientStatus.Text = $"Client Status: {status}";
+    }
+
+    public void UpdateFPS(double fps)
+    {
+        if (_isClosingForm || IsDisposed)
+        {
+            return;
+        }
+
+        if (InvokeRequired && IsHandleCreated)
+        {
+            BeginInvoke(() => UpdateFPS(fps));
+            return;
+        }
+
+        StreamStatistics stats = _serverService.Statistics;
+        lblFpsStats.Text =
+            $"FPS: {fps:0.0} | Frames: {stats.CompletedFrames} | Dropped: {stats.DroppedFrames + stats.InvalidPackets} | Bitrate: {stats.EstimatedBitrateKbps:0.0} Kbps";
+    }
+
+    private void OnServiceStatisticsUpdated(StreamStatistics stats)
+    {
+        UpdateFPS(stats.CurrentFps);
+    }
+
+    private async void OnServiceErrorOccurred(string errorMessage)
+    {
+        if (_isClosingForm || IsDisposed)
+        {
+            return;
+        }
+
+        if (InvokeRequired && IsHandleCreated)
+        {
+            BeginInvoke(() => OnServiceErrorOccurred(errorMessage));
+            return;
+        }
+
+        btnStartServer.Enabled = false;
         btnStopServer.Enabled = false;
-        btnRecord.Enabled = true;
-        btnStopRecord.Enabled = false;
-        lblClientStatus.Text = "Đã dừng lắng nghe";
-        lblStatus.Text = "FPS: 0 | Dropped: 0 | Recording: Off";
+        btnStartRecording.Enabled = false;
+        btnStopRecording.Enabled = false;
+        numListenPort.Enabled = false;
+        await _serverService.StopAsync();
+        if (_isClosingForm || IsDisposed)
+        {
+            return;
+        }
+
+        UpdateButtonStates(isServerRunning: false, isRecording: false);
+        UpdateServerStatus("Stopped");
+        MessageBox.Show(errorMessage, "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
-    private void btnRecord_Click(object? sender, EventArgs e)
+    private void ApplySettingsFromControls()
     {
-        try
-        {
-            string filePath = _serverService.StartRecording(_settings.RecordingsDirectory);
-            btnRecord.Enabled = false;
-            btnStopRecord.Enabled = true;
-            lblStatus.Text = $"FPS: 0 | Dropped: 0 | Recording: {filePath}";
-        }
-        catch (NotImplementedException ex)
-        {
-            MessageBox.Show(ex.Message, "Thông báo khung dự án", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Lỗi ghi hình", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    private void btnStopRecord_Click(object? sender, EventArgs e)
-    {
-        _serverService.StopRecording();
-        btnRecord.Enabled = true;
-        btnStopRecord.Enabled = false;
-        lblStatus.Text = "FPS: 0 | Dropped: 0 | Recording: Off";
-    }
-
-    private void chkFaceDetection_CheckedChanged(object? sender, EventArgs e)
-    {
+        _settings.ListenPort = (int)numListenPort.Value;
         _settings.EnableFaceDetection = chkFaceDetection.Checked;
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    private void UpdateButtonStates(bool isServerRunning, bool isRecording)
     {
-        _serverService.FrameDecoded -= OnFrameDecoded;
-        _serverService.Dispose();
-        picReceivedVideo.Image?.Dispose();
+        numListenPort.Enabled = !isServerRunning;
+        btnStartServer.Enabled = !isServerRunning;
+        btnStopServer.Enabled = isServerRunning;
+
+        btnStartRecording.Enabled = isServerRunning && !isRecording;
+        btnStopRecording.Enabled = isServerRunning && isRecording;
+    }
+
+    private static string DetectLocalLanIpv4()
+    {
+        try
+        {
+            var candidateIps = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(ni =>
+                    ni.OperationalStatus == OperationalStatus.Up &&
+                    ni.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                    !ni.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
+                    !ni.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(ni => ni.GetIPProperties().UnicastAddresses)
+                .Where(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork)
+                .Select(ua => ua.Address.ToString())
+                .ToList();
+
+            return candidateIps.FirstOrDefault() ?? "127.0.0.1";
+        }
+        catch
+        {
+            return "127.0.0.1";
+        }
+    }
+
+    protected override async void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (_closeReady)
+        {
+            return;
+        }
+
+        if (_isClosingForm)
+        {
+            e.Cancel = true;
+            return;
+        }
+
         base.OnFormClosing(e);
+        if (e.Cancel)
+        {
+            return;
+        }
+
+        // WinForms không chờ async void: hoãn đóng cho tới khi tệp video được hoàn tất.
+        e.Cancel = true;
+        _isClosingForm = true;
+        Enabled = false;
+
+        try
+        {
+            await _serverService.StopAsync();
+            _serverService.Dispose();
+
+            _serverService.FrameDecoded -= OnServiceFrameDecoded;
+            _serverService.StatisticsUpdated -= OnServiceStatisticsUpdated;
+            _serverService.StatusChanged -= UpdateServerStatus;
+            _serverService.ErrorOccurred -= OnServiceErrorOccurred;
+
+            Image? currentImg = picReceivedVideo.Image;
+            picReceivedVideo.Image = null;
+            currentImg?.Dispose();
+
+            _closeReady = true;
+            BeginInvoke(() => Close());
+        }
+        catch (Exception ex)
+        {
+            _isClosingForm = false;
+            Enabled = true;
+            UpdateButtonStates(_serverService.IsRunning, _serverService.IsRecording);
+            MessageBox.Show(ex.Message, "Shutdown Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 }

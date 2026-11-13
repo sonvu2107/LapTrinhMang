@@ -48,7 +48,7 @@ public class PacketTests
         Assert.False(header.IsValid);
     }
 
-    [Fact(Skip = "TODO [TV3]: Bỏ Skip sau khi hoàn thiện PacketSerializer.SerializePacket & TryDeserializePacket")]
+    [Fact]
     public void SerializeAndDeserialize_RoundTrip_PreservesHeaderAndPayload()
     {
         var expectedHeader = new PacketHeader(
@@ -69,5 +69,51 @@ public class PacketTests
         Assert.True(ok);
         Assert.Equal(expectedHeader, actualHeader);
         Assert.Equal(expectedPayload, actualPayload.ToArray());
+    }
+
+    [Fact]
+    public void SerializePacket_RejectsInvalidFlags()
+    {
+        var header = new PacketHeader(
+            ProtocolConstants.Magic,
+            ProtocolConstants.CurrentVersion,
+            Flags: 1,
+            StreamId: 1,
+            FrameId: 1,
+            ChunkIndex: 0,
+            ChunkCount: 1,
+            TimestampMs: 1);
+
+        Assert.Throws<ArgumentException>(() => PacketSerializer.SerializePacket(header, [1]));
+    }
+
+    [Fact]
+    public void TryDeserializePacket_RejectsDatagramsOutsideProtocolSize()
+    {
+        Assert.False(PacketSerializer.TryDeserializePacket(new byte[23], out _, out _));
+        Assert.False(PacketSerializer.TryDeserializePacket(new byte[1201], out _, out _));
+    }
+
+    [Fact]
+    public void TryDeserializePacket_RejectsInvalidMagicAndVersion()
+    {
+        var header = new PacketHeader(
+            ProtocolConstants.Magic,
+            ProtocolConstants.CurrentVersion,
+            ProtocolConstants.FlagData,
+            StreamId: 7,
+            FrameId: 2,
+            ChunkIndex: 0,
+            ChunkCount: 1,
+            TimestampMs: 1);
+        byte[] datagram = PacketSerializer.SerializePacket(header, [1]);
+
+        datagram[0] = 0;
+        Assert.False(PacketSerializer.TryDeserializePacket(datagram, out _, out _));
+
+        datagram[0] = (byte)(ProtocolConstants.Magic >> 8);
+        datagram[1] = (byte)(ProtocolConstants.Magic & 0xFF);
+        datagram[2] = 99;
+        Assert.False(PacketSerializer.TryDeserializePacket(datagram, out _, out _));
     }
 }

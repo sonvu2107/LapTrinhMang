@@ -13,15 +13,22 @@ namespace LanStream.Network;
 /// </summary>
 public sealed class UdpFrameReceiver : IDisposable
 {
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMilliseconds(50);
     private readonly int _listenPort;
     private readonly FrameAssembler _assembler;
     private UdpClient? _udpClient = null;
     private bool _disposed;
+    private bool _isRunning;
+    private long _bytesReceived;
 
     /// <summary>
     /// Sự kiện kích hoạt mỗi khi lắp ghép hoàn chỉnh một khung hình JPEG hợp lệ.
     /// </summary>
     public event Action<VideoFrame>? FrameReceived;
+
+    public long BytesReceived => Interlocked.Read(ref _bytesReceived);
+    public long DroppedFrames => _assembler.DroppedFrames;
+    public long InvalidPackets => _assembler.InvalidPackets;
 
     private void OnFrameReceived(VideoFrame frame) => FrameReceived?.Invoke(frame);
 
@@ -40,16 +47,53 @@ public sealed class UdpFrameReceiver : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // TODO [TV3]:
-        // 1. Khởi tạo _udpClient = new UdpClient(_listenPort).
-        // 2. Trong vòng lặp while (!cancellationToken.IsCancellationRequested):
-        //    - Gọi var result = await _udpClient.ReceiveAsync(cancellationToken).
-        //    - Đưa result.RemoteEndPoint và result.Buffer vào _assembler.TryAddPacket(...).
-        //    - Nếu hoàn thành frame, phát sự kiện FrameReceived?.Invoke(frame).
-        //    - Định kỳ gọi _assembler.CleanupExpiredFrames() để dọn các frame quá hạn 200ms.
-        // 3. Bắt OperationCanceledException an toàn khi Stop.
-        await Task.CompletedTask;
-        throw new NotImplementedException("TODO [TV3]: Triển khai vòng lặp nhận UDP bất đồng bộ.");
+        if (_isRunning)
+        {
+            throw new InvalidOperationException("The UDP receive loop is already running.");
+        }
+
+        _isRunning = true;
+        try
+        {
+            _udpClient = new UdpClient(_listenPort);
+            Task<UdpReceiveResult>? receiveTask = null;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                receiveTask ??= _udpClient.ReceiveAsync(cancellationToken).AsTask();
+
+                using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                Task delayTask = Task.Delay(CleanupInterval, delayCts.Token);
+                Task completedTask = await Task.WhenAny(receiveTask, delayTask).ConfigureAwait(false);
+                if (completedTask == delayTask)
+                {
+                    await delayTask.ConfigureAwait(false);
+                    _assembler.CleanupExpiredFrames();
+                    continue;
+                }
+
+                delayCts.Cancel();
+                UdpReceiveResult result = await receiveTask.ConfigureAwait(false);
+                receiveTask = null;
+                Interlocked.Add(ref _bytesReceived, result.Buffer.Length);
+                if (_assembler.TryAddPacket(result.RemoteEndPoint, result.Buffer, out VideoFrame? frame) &&
+                    frame is not null)
+                {
+                    OnFrameReceived(frame);
+                }
+
+                _assembler.CleanupExpiredFrames();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _udpClient?.Dispose();
+            _udpClient = null;
+            _isRunning = false;
+        }
     }
 
     public void Dispose()

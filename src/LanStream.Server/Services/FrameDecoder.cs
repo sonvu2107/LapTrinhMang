@@ -1,35 +1,63 @@
 using System;
 using System.Drawing;
 using OpenCvSharp;
+using OpenCvSharp.Extensions;
 
 namespace LanStream.Server.Services;
 
 /// <summary>
-/// Giải mã mảng byte ảnh JPEG nhận được thành đối tượng <see cref="Mat"/> (OpenCV)
-/// và chuyển đổi sang <see cref="Bitmap"/> phục vụ hiển thị trên WinForms.
-/// Phụ trách: TV1.
+/// Decodes incoming JPEG byte buffers into OpenCV <see cref="Mat"/> frames
+/// and converts them into WinForms <see cref="Bitmap"/> instances.
 /// </summary>
 public sealed class FrameDecoder
 {
-    /// <summary>
-    /// Giải mã dữ liệu JPEG sang <see cref="Mat"/> của OpenCV để xử lý tiếp (ghi hình, phát hiện khuôn mặt).
-    /// </summary>
-    /// <param name="jpegBytes">Dữ liệu ảnh JPEG đã ghép đủ gói.</param>
-    /// <returns><see cref="Mat"/> màu BGR, hoặc <c>null</c> nếu dữ liệu JPEG bị lỗi.</returns>
-    public Mat? DecodeToMat(byte[] jpegBytes)
+    private const int MinJpegBytes = 4;
+
+    public Mat? Decode(byte[]? jpegData)
     {
-        // TODO [TV1]:
-        // Gọi Cv2.ImDecode(jpegBytes, ImreadModes.Color), kiểm tra !mat.Empty() trước khi trả về.
-        throw new NotImplementedException("TODO [TV1]: Triển khai giải mã JPEG sang OpenCV Mat.");
+        if (jpegData is null || jpegData.Length < MinJpegBytes)
+        {
+            return null;
+        }
+
+        // Verify JPEG Start-Of-Image (SOI: 0xFF 0xD8) marker
+        if (jpegData[0] != 0xFF || jpegData[1] != 0xD8)
+        {
+            return null;
+        }
+
+        Mat? mat = null;
+        try
+        {
+            mat = Cv2.ImDecode(jpegData, ImreadModes.Color);
+            if (mat.Empty() || mat.Width <= 0 || mat.Height <= 0)
+            {
+                mat.Dispose();
+                return null;
+            }
+
+            return mat;
+        }
+        catch (OpenCVException)
+        {
+            mat?.Dispose();
+            return null;
+        }
+        catch (Exception)
+        {
+            mat?.Dispose();
+            return null;
+        }
     }
 
-    /// <summary>
-    /// Chuyển đổi <see cref="Mat"/> sang <see cref="Bitmap"/> để cập nhật lên <c>PictureBox</c>.
-    /// </summary>
     public Bitmap ConvertToBitmap(Mat frame)
     {
-        // TODO [TV1]:
-        // Sử dụng OpenCvSharp.Extensions.BitmapConverter.ToBitmap(frame).
-        throw new NotImplementedException("TODO [TV1]: Triển khai chuyển đổi Mat sang Bitmap.");
+        ArgumentNullException.ThrowIfNull(frame);
+        if (frame.Empty())
+        {
+            throw new ArgumentException("Cannot convert an empty Mat to Bitmap.", nameof(frame));
+        }
+
+        return BitmapConverter.ToBitmap(frame);
     }
 }

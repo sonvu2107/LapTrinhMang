@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using LanStream.Network;
@@ -12,10 +13,33 @@ namespace LanStream.Tests;
 /// </summary>
 public class NetworkTests
 {
-    [Fact(Skip = "TODO [TV3]: Bỏ Skip sau khi hoàn thiện UdpFrameSender và UdpFrameReceiver (TC03)")]
+    [Fact]
+    public async Task ReceiveLoop_CancellationReleasesPortAndAllowsRestart()
+    {
+        int port = GetAvailablePort();
+        using var receiver = new UdpFrameReceiver(port);
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            using var cts = new CancellationTokenSource();
+            Task receiveTask = receiver.ReceiveLoopAsync(cts.Token);
+            Assert.False(receiveTask.IsCompleted);
+            await cts.CancelAsync();
+            await receiveTask.WaitAsync(TimeSpan.FromSeconds(3));
+
+            using var probe = new UdpClient(new IPEndPoint(IPAddress.Any, port));
+        }
+    }
+
+    private static int GetAvailablePort()
+    {
+        using var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        return ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
+    }
+
+    [Fact]
     public async Task UdpLoopback_SendAndReceiveSingleFrame_Succeeds()
     {
-        const int testPort = 15005;
+        int testPort = GetAvailablePort();
         using var cts = new CancellationTokenSource(millisecondsDelay: 3000);
         using var receiver = new UdpFrameReceiver(testPort);
         using var sender = new UdpFrameSender();

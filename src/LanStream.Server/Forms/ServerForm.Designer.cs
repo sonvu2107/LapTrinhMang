@@ -9,6 +9,7 @@ partial class ServerForm
     private System.ComponentModel.IContainer? components = null;
 
     private Panel pnlTop = null!;
+    private Label lblServerIp = null!;
     private Label lblListenPort = null!;
     private NumericUpDown numListenPort = null!;
     private Button btnStartServer = null!;
@@ -18,14 +19,15 @@ partial class ServerForm
     private PictureBox picReceivedVideo = null!;
 
     private Panel pnlBottom = null!;
-    private Button btnRecord = null!;
-    private Button btnStopRecord = null!;
+    private Button btnStartRecording = null!;
+    private Button btnStopRecording = null!;
     private CheckBox chkFaceDetection = null!;
-    private Label lblStatus = null!;
+    private Label lblFpsStats = null!;
+    private Label lblRecordingPath = null!;
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing && (components != null))
+        if (disposing && components is not null)
         {
             components.Dispose();
         }
@@ -35,17 +37,21 @@ partial class ServerForm
     private void InitializeComponent()
     {
         pnlTop = new Panel();
+        lblServerIp = new Label();
         lblListenPort = new Label();
         numListenPort = new NumericUpDown();
         btnStartServer = new Button();
         btnStopServer = new Button();
         lblClientStatus = new Label();
+
         picReceivedVideo = new PictureBox();
+
         pnlBottom = new Panel();
-        btnRecord = new Button();
-        btnStopRecord = new Button();
+        btnStartRecording = new Button();
+        btnStopRecording = new Button();
         chkFaceDetection = new CheckBox();
-        lblStatus = new Label();
+        lblFpsStats = new Label();
+        lblRecordingPath = new Label();
 
         ((System.ComponentModel.ISupportInitialize)numListenPort).BeginInit();
         ((System.ComponentModel.ISupportInitialize)picReceivedVideo).BeginInit();
@@ -55,11 +61,12 @@ partial class ServerForm
 
         // pnlTop
         pnlTop.Dock = DockStyle.Top;
-        pnlTop.Height = 76;
+        pnlTop.Height = 84;
         pnlTop.Padding = new Padding(12);
         pnlTop.Controls.AddRange(new Control[]
         {
-            lblListenPort, numListenPort, btnStartServer, btnStopServer, lblClientStatus
+            lblServerIp, lblListenPort, numListenPort,
+            btnStartServer, btnStopServer, lblClientStatus
         });
 
         lblListenPort.AutoSize = true;
@@ -67,70 +74,83 @@ partial class ServerForm
         lblListenPort.Text = "Listening Port:";
 
         numListenPort.Location = new Point(108, 12);
-        numListenPort.Width = 90;
+        numListenPort.Width = 85;
         numListenPort.Minimum = 1024;
         numListenPort.Maximum = 65535;
         numListenPort.Value = 5000;
 
-        btnStartServer.Location = new Point(214, 9);
-        btnStartServer.Size = new Size(115, 30);
+        btnStartServer.Location = new Point(208, 10);
+        btnStartServer.Size = new Size(120, 30);
         btnStartServer.Text = "Start Server";
         btnStartServer.UseVisualStyleBackColor = true;
-        btnStartServer.Click += btnStartServer_Click;
+        btnStartServer.Click += StartServer_Click;
 
-        btnStopServer.Location = new Point(338, 9);
-        btnStopServer.Size = new Size(115, 30);
+        btnStopServer.Location = new Point(336, 10);
+        btnStopServer.Size = new Size(120, 30);
         btnStopServer.Text = "Stop Server";
         btnStopServer.Enabled = false;
         btnStopServer.UseVisualStyleBackColor = true;
-        btnStopServer.Click += btnStopServer_Click;
+        btnStopServer.Click += StopServer_Click;
+
+        lblServerIp.AutoSize = true;
+        lblServerIp.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        lblServerIp.Location = new Point(474, 16);
+        lblServerIp.Text = "Server IP: 127.0.0.1";
 
         lblClientStatus.AutoSize = true;
-        lblClientStatus.Location = new Point(12, 48);
-        lblClientStatus.Text = "Client Status: Waiting for video...";
+        lblClientStatus.Location = new Point(12, 52);
+        lblClientStatus.Text = "Client Status: Stopped";
 
         // picReceivedVideo
         picReceivedVideo.Dock = DockStyle.Fill;
-        picReceivedVideo.BackColor = Color.FromArgb(20, 20, 24);
+        picReceivedVideo.BackColor = Color.FromArgb(20, 22, 26);
         picReceivedVideo.BorderStyle = BorderStyle.FixedSingle;
         picReceivedVideo.SizeMode = PictureBoxSizeMode.Zoom;
 
         // pnlBottom
         pnlBottom.Dock = DockStyle.Bottom;
-        pnlBottom.Height = 76;
+        pnlBottom.Height = 96;
         pnlBottom.Padding = new Padding(12);
         pnlBottom.Controls.AddRange(new Control[]
         {
-            btnRecord, btnStopRecord, chkFaceDetection, lblStatus
+            btnStartRecording, btnStopRecording, chkFaceDetection,
+            lblFpsStats, lblRecordingPath
         });
 
-        btnRecord.Location = new Point(12, 10);
-        btnRecord.Size = new Size(125, 32);
-        btnRecord.Text = "Record";
-        btnRecord.UseVisualStyleBackColor = true;
-        btnRecord.Click += btnRecord_Click;
+        btnStartRecording.Location = new Point(12, 10);
+        btnStartRecording.Size = new Size(135, 32);
+        btnStartRecording.Text = "Start Recording";
+        btnStartRecording.Enabled = false;
+        btnStartRecording.UseVisualStyleBackColor = true;
+        btnStartRecording.Click += StartRecording_Click;
 
-        btnStopRecord.Location = new Point(146, 10);
-        btnStopRecord.Size = new Size(125, 32);
-        btnStopRecord.Text = "Stop Recording";
-        btnStopRecord.Enabled = false;
-        btnStopRecord.UseVisualStyleBackColor = true;
-        btnStopRecord.Click += btnStopRecord_Click;
+        btnStopRecording.Location = new Point(155, 10);
+        btnStopRecording.Size = new Size(135, 32);
+        btnStopRecording.Text = "Stop Recording";
+        btnStopRecording.Enabled = false;
+        btnStopRecording.UseVisualStyleBackColor = true;
+        btnStopRecording.Click += StopRecording_Click;
 
         chkFaceDetection.AutoSize = true;
-        chkFaceDetection.Location = new Point(290, 17);
-        chkFaceDetection.Text = "Face Detection (OpenCV)";
-        chkFaceDetection.CheckedChanged += chkFaceDetection_CheckedChanged;
+        chkFaceDetection.Location = new Point(308, 16);
+        chkFaceDetection.Text = "Face Detection";
+        chkFaceDetection.CheckedChanged += ChkFaceDetection_CheckedChanged;
 
-        lblStatus.AutoSize = true;
-        lblStatus.Location = new Point(12, 50);
-        lblStatus.Text = "FPS: 0 | Dropped: 0 | Recording: Off";
+        lblFpsStats.AutoSize = true;
+        lblFpsStats.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+        lblFpsStats.Location = new Point(12, 50);
+        lblFpsStats.Text = "FPS: 0.0 | Frames: 0 | Dropped: 0 | Bitrate: 0.0 Kbps";
+
+        lblRecordingPath.AutoSize = true;
+        lblRecordingPath.ForeColor = Color.DimGray;
+        lblRecordingPath.Location = new Point(12, 72);
+        lblRecordingPath.Text = "Recording: Off";
 
         // ServerForm
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(760, 620);
-        MinimumSize = new Size(640, 520);
+        ClientSize = new Size(780, 640);
+        MinimumSize = new Size(680, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Text = "LAN Video Streaming - Server";
         Controls.Add(picReceivedVideo);
