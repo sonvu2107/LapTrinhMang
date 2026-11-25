@@ -10,6 +10,19 @@
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260627" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\assets\models\haarcascade_frontalface_default.xml"
+             Link="assets\models\haarcascade_frontalface_default.xml"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="true" />
+    <Content Include="..\..\assets\models\face_detection_yunet_2023mar.onnx;..\..\assets\models\face_detection_yunet.LICENSE"
+             Link="assets\models\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>

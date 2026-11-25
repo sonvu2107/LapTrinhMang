@@ -14,7 +14,7 @@
 | Truyền dữ liệu      | UDP Socket (`Async/Await`)  |
 | Nén hình ảnh        | JPEG                        |
 | Lưu video           | OpenCV `VideoWriter`        |
-| Phát hiện khuôn mặt | OpenCV (mở rộng)            |
+| Phát hiện khuôn mặt | OpenCV YuNet và optical flow |
 
 ## 2. Cấu trúc thư mục
 
@@ -24,14 +24,14 @@ LANVideoStreaming/
 ├── README.md
 ├── .gitignore
 ├── src/
-│   ├── LanStream.Client/       # (TV2) Webcam, nén JPEG, gửi video
+│   ├── LanStream.Client/       # (TV2) Webcam, nén JPEG, gửi video, giao diện.
 │   ├── LanStream.Server/       # (TV1) Nhận & hiển thị video, ghi hình, nhận diện
 │   ├── LanStream.Network/      # (TV3) UDP Sender/Receiver, chia & ghép gói tin
 │   └── LanStream.Shared/       # (TV1 + TV3) Models & giao thức UDP dùng chung
 ├── tests/
 │   └── LanStream.Tests/        # (TV3 + TV4) Unit tests cho giao thức & lắp ghép gói
 ├── assets/
-│   └── models/                 # Chứa model phát hiện khuôn mặt (Haar Cascade / YuNet)
+│   └── models/                 # Mô hình phát hiện khuôn mặt đi kèm Server
 ├── recordings/                 # Thư mục lưu video ghi hình từ Server
 └── docs/                       # (TV4) Tài liệu yêu cầu, kiến trúc, giao thức, kiểm thử
 ```

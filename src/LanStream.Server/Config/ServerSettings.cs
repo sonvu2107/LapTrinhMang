@@ -7,6 +7,8 @@ namespace LanStream.Server.Config;
 /// </summary>
 public sealed class ServerSettings
 {
+    internal const string DefaultFaceModelPath = "assets/models/face_detection_yunet_2023mar.onnx";
+
     public int ListenPort { get; set; } = ProtocolConstants.DefaultUdpPort;
 
     public int TargetFps { get; set; } = ProtocolConstants.DefaultTargetFps;
@@ -23,7 +25,7 @@ public sealed class ServerSettings
 
     public string RecordingsDirectory { get; set; } = "recordings";
 
-    public string FaceModelPath { get; set; } = "assets/models/haarcascade_frontalface_default.xml";
+    public string FaceModelPath { get; set; } = DefaultFaceModelPath;
 
     public bool EnableFaceDetection { get; set; }
 

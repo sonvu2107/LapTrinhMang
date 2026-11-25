@@ -36,7 +36,8 @@ dotnet run --project src/LanStream.Server
 1. Kiểm tra ô **Listening Port** (mặc định `5000`).
 2. Nhấn **Start Server** để bắt đầu lắng nghe luồng video.
 3. (Tùy chọn) Nhấn **Record** để lưu video vào thư mục `recordings/`.
-4. Để bật **Face Detection**, đặt tệp Haar Cascade XML tại đường dẫn `assets/models/haarcascade_frontalface_default.xml` (hoặc cập nhật `FaceModelPath` trong cấu hình). Server sẽ báo lỗi rõ ràng nếu tệp không tồn tại hoặc không đọc được.
+4. Tích **Phát hiện khuôn mặt** để Server vẽ khung xanh quanh khuôn mặt. Có thể bật hoặc tắt trong lúc đang nhận video. Nếu bộ phát hiện tạm mất dấu, OpenCV dùng các điểm ảnh còn theo dõi được để di chuyển khung trong tối đa 250 ms kể từ lần phát hiện gần nhất. Tệp ghi hình lưu hình ảnh gốc.
+5. Mô hình [YuNet của OpenCV](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) được sao chép tự động khi build hoặc publish Server. Khi chuyển bản phát hành sang máy khác, chép cả thư mục `assets/models` đi kèm Server.
 
 ### Bước 2: Chạy ứng dụng Client
 ```powershell

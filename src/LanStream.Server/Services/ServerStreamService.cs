@@ -42,7 +42,7 @@ public sealed class ServerStreamService : IDisposable
     private long _lastUdpDroppedFrames;
     private long _lastUdpInvalidPackets;
     private long _lastFrameTimestampTicksUtc;
-    private bool _faceModelLoadAttempted;
+    private volatile bool _faceDetectionEnabled;
     private bool _hasActiveVideoSignal;
     private bool _disposed;
 
@@ -61,6 +61,8 @@ public sealed class ServerStreamService : IDisposable
     public bool IsRecording => _videoRecorder.IsRecording;
 
     public string? CurrentRecordingPath => _videoRecorder.CurrentOutputPath;
+
+    public bool IsFaceDetectionEnabled => _faceDetectionEnabled;
 
     public bool IsFaceModelAvailable => _faceDetectionService.IsModelLoaded;
 
@@ -254,13 +256,9 @@ public sealed class ServerStreamService : IDisposable
             _videoRecorder.WriteFrame(decodedMat);
         }
 
-        if (_settings.EnableFaceDetection)
+        if (_faceDetectionEnabled)
         {
-            EnsureFaceModelLoaded();
-            if (_faceDetectionService.IsModelLoaded)
-            {
-                _faceDetectionService.DrawFaceBoxes(decodedMat);
-            }
+            _faceDetectionService.DrawTrackedFaceBoxes(decodedMat, frame.StreamId, frame.RemoteEndPoint);
         }
 
         var handler = FrameDecoded;
@@ -307,21 +305,17 @@ public sealed class ServerStreamService : IDisposable
     public bool SetFaceDetectionEnabled(bool enabled)
     {
         _settings.EnableFaceDetection = enabled;
-        if (!enabled)
-        {
-            return true;
-        }
-
-        _faceModelLoadAttempted = false;
-        EnsureFaceModelLoaded();
-        return _faceDetectionService.IsModelLoaded;
+        _faceDetectionEnabled = false;
+        _faceDetectionService.ResetTracking();
+        _faceDetectionEnabled = enabled && _faceDetectionService.LoadModel(_settings.FaceModelPath);
+        return !enabled || _faceDetectionEnabled;
     }
 
     private void PrepareRuntimePipeline(ServerSettings settings)
     {
         _settings = settings;
         _hasActiveVideoSignal = false;
-        _faceModelLoadAttempted = false;
+        SetFaceDetectionEnabled(settings.EnableFaceDetection);
         _decodedFramesInWindow = 0;
         _bytesReceivedInWindow = 0;
         _lastUdpBytesReceived = 0;
@@ -339,17 +333,6 @@ public sealed class ServerStreamService : IDisposable
             SingleReader = true,
             SingleWriter = false
         }, _ => Interlocked.Increment(ref _droppedDecodeQueueFrames));
-    }
-
-    private void EnsureFaceModelLoaded()
-    {
-        if (_faceDetectionService.IsModelLoaded || _faceModelLoadAttempted)
-        {
-            return;
-        }
-
-        _faceModelLoadAttempted = true;
-        _faceDetectionService.LoadModel(_settings.FaceModelPath);
     }
 
     private async Task RunReceiverLoopSafeAsync(UdpFrameReceiver receiver, CancellationToken cancellationToken)

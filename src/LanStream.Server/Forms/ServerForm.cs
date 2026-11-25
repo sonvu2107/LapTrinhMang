@@ -53,6 +53,10 @@ public partial class ServerForm : Form
             UpdateButtonStates(isServerRunning: true, isRecording: false);
 
             await _serverService.StartAsync(_settings);
+            if (chkFaceDetection.Checked && !_serverService.IsFaceDetectionEnabled)
+            {
+                ShowFaceModelError();
+            }
         }
         catch (Exception ex)
         {
@@ -108,13 +112,22 @@ public partial class ServerForm : Form
 
     private void ChkFaceDetection_CheckedChanged(object? sender, EventArgs e)
     {
-        bool enabled = chkFaceDetection.Checked;
-        bool modelReady = _serverService.SetFaceDetectionEnabled(enabled);
-
-        if (enabled && !modelReady)
+        if (_serverService.IsRunning && !_serverService.SetFaceDetectionEnabled(chkFaceDetection.Checked))
         {
-            UpdateServerStatus($"Face model not found at '{_settings.FaceModelPath}'");
+            ShowFaceModelError();
         }
+    }
+
+    private void ShowFaceModelError()
+    {
+        chkFaceDetection.Checked = false;
+        MessageBox.Show(
+            this,
+            $"Không tải được mô hình OpenCV từ đường dẫn {_settings.FaceModelPath}.\n" +
+            "Hãy kiểm tra tệp mô hình rồi bật lại tính năng.",
+            "Phát hiện khuôn mặt",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     private void OnServiceFrameDecoded(Bitmap frameBitmap, VideoFrame metadata)

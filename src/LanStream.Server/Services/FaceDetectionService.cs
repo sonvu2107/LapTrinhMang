@@ -1,18 +1,26 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Threading;
+using LanStream.Server.Config;
 using OpenCvSharp;
+using Size = OpenCvSharp.Size;
 
 namespace LanStream.Server.Services;
 
 /// <summary>
-/// Detects faces in video frames using OpenCV Haar Cascade and draws bounding boxes.
+/// Phát hiện khuôn mặt bằng OpenCV và theo dõi chuyển động giữa các khung hình.
 /// </summary>
 public sealed class FaceDetectionService : IDisposable
 {
+    private static readonly Size YuNetInputSize = new(320, 320);
     private const double DownscaleFactor = 0.5;
+    private const int MinimumFaceSize = 24;
     private readonly Lock _syncLock = new();
     private CascadeClassifier? _cascadeClassifier;
+    private FaceDetectorYN? _yuNet;
+    private readonly FaceBoxTracker _tracker = new();
+    private (uint StreamId, IPEndPoint? Sender)? _trackedStream;
     private string _configuredModelPath;
     private bool _disposed;
 
@@ -22,46 +30,65 @@ public sealed class FaceDetectionService : IDisposable
         {
             lock (_syncLock)
             {
-                return _cascadeClassifier is not null;
+                return _yuNet is not null || _cascadeClassifier is not null;
             }
         }
     }
 
     public string? LoadedModelFullPath { get; private set; }
 
-    public FaceDetectionService(string defaultModelPath = "assets/models/haarcascade_frontalface_default.xml")
+    public FaceDetectionService(string defaultModelPath = ServerSettings.DefaultFaceModelPath)
     {
         _configuredModelPath = defaultModelPath;
     }
 
     public bool LoadModel(string? modelPath = null)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (!string.IsNullOrWhiteSpace(modelPath))
-        {
-            _configuredModelPath = modelPath;
-        }
-
-        string? resolvedPath = ResolveModelPath(_configuredModelPath);
-        if (resolvedPath is null)
-        {
-            return false;
-        }
-
         lock (_syncLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!string.IsNullOrWhiteSpace(modelPath))
+            {
+                _configuredModelPath = modelPath;
+            }
+
             try
             {
-                var classifier = new CascadeClassifier(resolvedPath);
-                if (classifier.Empty())
+                string? resolvedPath = ResolveModelPath(_configuredModelPath);
+                if (resolvedPath is null)
                 {
-                    classifier.Dispose();
                     return false;
                 }
 
-                _cascadeClassifier?.Dispose();
-                _cascadeClassifier = classifier;
+                if (resolvedPath == LoadedModelFullPath)
+                {
+                    return true;
+                }
+
+                if (string.Equals(Path.GetExtension(resolvedPath), ".onnx", StringComparison.OrdinalIgnoreCase))
+                {
+                    var detector = FaceDetectorYN.Create(resolvedPath, "", YuNetInputSize, scoreThreshold: 0.7f);
+                    _yuNet?.Dispose();
+                    _yuNet = detector;
+                    _cascadeClassifier?.Dispose();
+                    _cascadeClassifier = null;
+                }
+                else
+                {
+                    var classifier = new CascadeClassifier(resolvedPath);
+                    if (classifier.Empty())
+                    {
+                        classifier.Dispose();
+                        return false;
+                    }
+
+                    _cascadeClassifier?.Dispose();
+                    _cascadeClassifier = classifier;
+                    _yuNet?.Dispose();
+                    _yuNet = null;
+                }
+
+                ResetTracking();
                 LoadedModelFullPath = resolvedPath;
                 return true;
             }
@@ -74,13 +101,18 @@ public sealed class FaceDetectionService : IDisposable
 
     public Rect[] DetectFaces(Mat frame)
     {
-        if (_disposed || frame is null || frame.Empty())
+        if (frame is null || frame.Empty() || Math.Min(frame.Width, frame.Height) < MinimumFaceSize)
         {
             return [];
         }
 
         lock (_syncLock)
         {
+            if (_yuNet is not null)
+            {
+                return DetectWithYuNet(frame, _yuNet);
+            }
+
             if (_cascadeClassifier is null)
             {
                 return [];
@@ -90,31 +122,37 @@ public sealed class FaceDetectionService : IDisposable
             Cv2.CvtColor(frame, gray, ColorConversionCodes.BGR2GRAY);
 
             using var smallGray = new Mat();
-            Cv2.Resize(gray, smallGray, new OpenCvSharp.Size(), DownscaleFactor, DownscaleFactor, InterpolationFlags.Linear);
-            Cv2.EqualizeHist(smallGray, smallGray);
+            Mat detectionImage = gray;
+            if (Math.Min(gray.Width, gray.Height) * DownscaleFactor >= MinimumFaceSize)
+            {
+                Cv2.Resize(gray, smallGray, new OpenCvSharp.Size(), DownscaleFactor, DownscaleFactor, InterpolationFlags.Linear);
+                detectionImage = smallGray;
+            }
 
-            Rect[] detectedSmall = _cascadeClassifier.DetectMultiScale(
-                image: smallGray,
+            Cv2.EqualizeHist(detectionImage, detectionImage);
+            Rect[] detectedFaces = _cascadeClassifier.DetectMultiScale(
+                image: detectionImage,
                 scaleFactor: 1.15,
                 minNeighbors: 4,
                 flags: HaarDetectionTypes.ScaleImage,
-                minSize: new OpenCvSharp.Size(24, 24));
+                minSize: new OpenCvSharp.Size(MinimumFaceSize, MinimumFaceSize));
 
-            if (detectedSmall.Length == 0)
+            if (detectedFaces.Length == 0)
             {
                 return [];
             }
 
-            double invScale = 1.0 / DownscaleFactor;
-            var scaledRects = new Rect[detectedSmall.Length];
-            for (int i = 0; i < detectedSmall.Length; i++)
+            double scaleX = (double)frame.Width / detectionImage.Width;
+            double scaleY = (double)frame.Height / detectionImage.Height;
+            var scaledRects = new Rect[detectedFaces.Length];
+            for (int i = 0; i < detectedFaces.Length; i++)
             {
-                Rect r = detectedSmall[i];
-                scaledRects[i] = new Rect(
-                    (int)Math.Round(r.X * invScale),
-                    (int)Math.Round(r.Y * invScale),
-                    (int)Math.Round(r.Width * invScale),
-                    (int)Math.Round(r.Height * invScale));
+                Rect r = detectedFaces[i];
+                int left = (int)Math.Round(r.Left * scaleX);
+                int top = (int)Math.Round(r.Top * scaleY);
+                int right = (int)Math.Round(r.Right * scaleX);
+                int bottom = (int)Math.Round(r.Bottom * scaleY);
+                scaledRects[i] = new Rect(left, top, right - left, bottom - top);
             }
 
             return scaledRects;
@@ -122,10 +160,70 @@ public sealed class FaceDetectionService : IDisposable
     }
 
     public int DrawFaceBoxes(Mat frame)
+        => DrawTrackedFaceBoxes(frame, 0, null);
+
+    internal int DrawTrackedFaceBoxes(Mat frame, uint streamId, IPEndPoint? sender)
     {
-        Rect[] faces = DetectFaces(frame);
-        DrawFaceBoxes(frame, faces);
-        return faces.Length;
+        if (frame is null || frame.Empty())
+        {
+            return 0;
+        }
+
+        lock (_syncLock)
+        {
+            if (_trackedStream is not { } previous || previous.StreamId != streamId || !Equals(previous.Sender, sender))
+            {
+                _tracker.Reset();
+                _trackedStream = (streamId, sender);
+            }
+
+            Rect[] faces = _tracker.Update(frame, DetectFaces(frame));
+            DrawFaceBoxes(frame, faces);
+            return faces.Length;
+        }
+    }
+
+    internal void ResetTracking()
+    {
+        lock (_syncLock)
+        {
+            _tracker.Reset();
+            _trackedStream = null;
+        }
+    }
+
+    private static Rect[] DetectWithYuNet(Mat frame, FaceDetectorYN detector)
+    {
+        double ratio = (double)YuNetInputSize.Width / Math.Max(frame.Width, frame.Height);
+        int width = Math.Max(1, (int)Math.Round(frame.Width * ratio));
+        int height = Math.Max(1, (int)Math.Round(frame.Height * ratio));
+        using var input = new Mat(YuNetInputSize, MatType.CV_8UC3, Scalar.Black);
+        using var resized = new Mat(input, new Rect(0, 0, width, height));
+        Cv2.Resize(frame, resized, new Size(width, height), interpolation: InterpolationFlags.Linear);
+
+        using var predictions = new Mat();
+        detector.Detect(input, predictions);
+        int count = predictions.Rows;
+        var faces = new List<Rect>(count);
+        var imageBounds = new Rect(0, 0, frame.Width, frame.Height);
+        double scaleX = (double)frame.Width / width;
+        double scaleY = (double)frame.Height / height;
+        for (int row = 0; row < count; row++)
+        {
+            float x = predictions.At<float>(row, 0);
+            float y = predictions.At<float>(row, 1);
+            int left = (int)Math.Round(x * scaleX);
+            int top = (int)Math.Round(y * scaleY);
+            int right = (int)Math.Round((x + predictions.At<float>(row, 2)) * scaleX);
+            int bottom = (int)Math.Round((y + predictions.At<float>(row, 3)) * scaleY);
+            Rect face = new Rect(left, top, right - left, bottom - top) & imageBounds;
+            if (face.Width > 0 && face.Height > 0)
+            {
+                faces.Add(face);
+            }
+        }
+
+        return faces.ToArray();
     }
 
     public void DrawFaceBoxes(Mat frame, ReadOnlySpan<Rect> faces)
@@ -135,20 +233,9 @@ public sealed class FaceDetectionService : IDisposable
             return;
         }
 
-        for (int i = 0; i < faces.Length; i++)
+        foreach (Rect face in faces)
         {
-            Rect rect = faces[i];
-            Cv2.Rectangle(frame, rect, Scalar.LimeGreen, thickness: 2);
-
-            int labelY = Math.Max(rect.Y - 8, 16);
-            Cv2.PutText(
-                frame,
-                $"Face #{i + 1}",
-                new OpenCvSharp.Point(rect.X, labelY),
-                HersheyFonts.HersheySimplex,
-                0.55,
-                Scalar.LimeGreen,
-                thickness: 2);
+            Cv2.Rectangle(frame, face, Scalar.LimeGreen, thickness: 2);
         }
     }
 
@@ -189,6 +276,9 @@ public sealed class FaceDetectionService : IDisposable
         {
             _cascadeClassifier?.Dispose();
             _cascadeClassifier = null;
+            _yuNet?.Dispose();
+            _yuNet = null;
+            _tracker.Dispose();
             _disposed = true;
         }
     }

@@ -133,7 +133,7 @@ partial class ServerForm
 
         chkFaceDetection.AutoSize = true;
         chkFaceDetection.Location = new Point(308, 16);
-        chkFaceDetection.Text = "Face Detection";
+        chkFaceDetection.Text = "&Phát hiện khuôn mặt";
         chkFaceDetection.CheckedChanged += ChkFaceDetection_CheckedChanged;
 
         lblFpsStats.AutoSize = true;

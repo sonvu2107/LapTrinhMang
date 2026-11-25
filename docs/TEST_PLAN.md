@@ -21,7 +21,7 @@
 | TC11  | Ngắt kết nối Webcam đột ngột    | Rút USB webcam hoặc tắt quyền camera khi đang stream    | Hiển thị thông báo lỗi và dọn dẹp tài nguyên an toàn | Pending    |
 | TC12  | Kiểm thử chặn bởi Firewall      | Bật chặn cổng UDP 5000 trên máy Server                  | Server báo không có tín hiệu; mở rule thì nhận lại   | Pending    |
 | TC13  | Chạy liên tục 5 phút (Stress)   | Giữ phiên truyền liên tục trong 5 phút                  | RAM ổn định (không rò rỉ `Bitmap`/`Mat`), không đơ   | Pending    |
-| TC14  | Bật tính năng phát hiện mặt     | Tích chọn `Face Detection` trên giao diện Server        | Xuất hiện khung bao quanh khuôn mặt trong khung hình | Pending    |
+| TC14  | Bật hoặc tắt phát hiện mặt      | Tích hoặc bỏ chọn **Phát hiện khuôn mặt** khi Server đang nhận video | Khung xanh hiện hoặc biến mất theo trạng thái ô chọn | Pending    |
 
 ## 3. Các chỉ số cần thu thập cho báo cáo
 - **FPS trung bình:** Gửi tại Client vs. Nhận tại Server.
